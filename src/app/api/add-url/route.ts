@@ -10,20 +10,20 @@ import { getUserCoins } from "@/actions/fetchActions";
 export async function POST(req: NextRequest) {
   const token = await getToken({ req });
   if (!token) {
-    return NextResponse.json({ message: "UnAuthorized" }, { status: 401 });
+    return NextResponse.json({ message: "Unauthorized. Please log in again." }, { status: 401 });
   }
+  
   try {
     const body = await req.json();
     const validator = vine.compile(summarySchema);
     const payload = await validator.validate(body);
 
-    // * Check if user has sufficient coins or not
-    const userConis = await getUserCoins(payload.user_id);
-    if (userConis === null || (userConis?.coins && userConis.coins < 10)) {
+    // Check if user has sufficient coins
+    const userCoins = await getUserCoins(payload.user_id);
+    if (userCoins === null || (userCoins?.coins && userCoins.coins < 10)) {
       return NextResponse.json(
         {
-          message:
-            "You don't have sufficient coins for summary.Please add your coins.",
+          message: "You don't have sufficient coins for summary. Please add more coins.",
         },
         { status: 400 }
       );
@@ -39,8 +39,7 @@ export async function POST(req: NextRequest) {
     } catch (error) {
       return NextResponse.json(
         {
-          message:
-            "No Transcript available for this video.Plese try another video",
+          message: "No Transcript available for this video. Please try another video.",
         },
         { status: 404 }
       );
@@ -53,8 +52,9 @@ export async function POST(req: NextRequest) {
         title: text[0].metadata?.title ?? "No Title found!",
       },
     });
+
     return NextResponse.json({
-      message: "Url Added Successfully!",
+      message: "URL Added Successfully!",
       data: chat,
     });
   } catch (error) {
@@ -64,8 +64,9 @@ export async function POST(req: NextRequest) {
         { status: 422 }
       );
     }
+    console.error("Error in add-url API:", error);
     return NextResponse.json(
-      { message: "Something went wrong.Please try again!" },
+      { message: "Something went wrong. Please try again!" },
       { status: 500 }
     );
   }
