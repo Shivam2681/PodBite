@@ -19,12 +19,27 @@ interface SummarizePayload {
   id: string;
 }
 
+// Custom error types
+class YoutubeTranscriptError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'YoutubeTranscriptError';
+  }
+}
+
+class GeminiAPIError extends Error {
+  constructor(message: string, public originalError?: unknown) {
+    super(message);
+    this.name = 'GeminiAPIError';
+  }
+}
+
 // Custom error handler for Gemini API
-const handleGeminiError = async (error: any, docsSummary: Document[], summaryPrompt: PromptTemplate) => {
+const handleGeminiError = async (error: unknown, docsSummary: Document[], summaryPrompt: PromptTemplate) => {
   console.error("Initial Gemini API error:", error);
   
-  // If it's a safety error, try with more conservative settings
-  if (error.message?.includes('SAFETY')) {
+  // Type guard for error with message property
+  if (error instanceof Error && error.message?.includes('SAFETY')) {
     // Create a Langchain-compatible model with conservative settings
     const conservativeModel = new ChatGoogleGenerativeAI({
       modelName: "gemini-pro",
@@ -61,11 +76,11 @@ const handleGeminiError = async (error: any, docsSummary: Document[], summaryPro
       return await fallbackChain.invoke({ input_documents: docsSummary });
     } catch (fallbackError) {
       console.error("Fallback attempt failed:", fallbackError);
-      throw new Error("Unable to process content due to content restrictions");
+      throw new GeminiAPIError("Unable to process content due to content restrictions", fallbackError);
     }
   }
   
-  throw error;
+  throw new GeminiAPIError("Unexpected Gemini API error", error);
 };
 
 export async function POST(req: NextRequest) {
@@ -115,17 +130,12 @@ export async function POST(req: NextRequest) {
       });
       text = await loader.load();
     } catch (error) {
-      return NextResponse.json(
-        {
-          message: "No Transcript available for this video. Please try another video",
-        },
-        { status: 404 }
-      );
+      throw new YoutubeTranscriptError("No Transcript available for this video. Please try another video");
     }
 
     // Process the transcript
     const splitter = new TokenTextSplitter({
-      chunkSize: 8000, // Reduced for Gemini
+      chunkSize: 8000,
       chunkOverlap: 200,
     });
     
@@ -156,10 +166,21 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error("Error in summary generation:", error);
+    
+    // Handle different error types
+    if (error instanceof YoutubeTranscriptError) {
+      return NextResponse.json({ message: error.message }, { status: 404 });
+    }
+    
+    if (error instanceof GeminiAPIError) {
+      return NextResponse.json({ message: error.message }, { status: 500 });
+    }
+    
+    // Default error response
     return NextResponse.json(
       { 
-        message: error.message || "Something went wrong. Please try again!",
-        error: process.env.NODE_ENV === 'development' ? error.toString() : undefined 
+        message: error instanceof Error ? error.message : "Something went wrong. Please try again!",
+        error: process.env.NODE_ENV === 'development' ? String(error) : undefined 
       },
       { status: 500 }
     );
