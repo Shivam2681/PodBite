@@ -5,13 +5,14 @@ import { TokenTextSplitter } from "langchain/text_splitter";
 import { Document } from "@langchain/core/documents";
 import { PromptTemplate } from "@langchain/core/prompts";
 import { summaryTemplate } from "@/lib/prompts";
-import { geminiModel } from "@/lib/langchain"; // Updated import
+import { geminiModel } from "@/lib/langchain";
 import { getServerSession } from "next-auth";
 import { authOptions, CustomSession } from "../auth/[...nextauth]/options";
 import { getUserCoins } from "@/actions/fetchActions";
 import { coinsSpend, minusCoins, updateSummary } from "@/actions/commonActions";
 import prisma from "@/lib/db.config";
-import { ChatGoogleGenerativeAI, GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
+import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+import { HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
 
 interface SummarizePayload {
   url: string;
@@ -24,27 +25,28 @@ const handleGeminiError = async (error: any, docsSummary: Document[], summaryPro
   
   // If it's a safety error, try with more conservative settings
   if (error.message?.includes('SAFETY')) {
+    // Create a Langchain-compatible model with conservative settings
     const conservativeModel = new ChatGoogleGenerativeAI({
-      apiKey: process.env.GOOGLE_API_KEY!,
       modelName: "gemini-pro",
       maxOutputTokens: 1024,
       temperature: 0.1,
+      apiKey: process.env.GOOGLE_API_KEY!,
       safetySettings: [
         {
           category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-          threshold: HarmBlockThreshold.BLOCK_HIGH_AND_ABOVE,
+          threshold: HarmBlockThreshold.BLOCK_LOW_AND_ABOVE,
         },
         {
           category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-          threshold: HarmBlockThreshold.BLOCK_HIGH_AND_ABOVE,
+          threshold: HarmBlockThreshold.BLOCK_LOW_AND_ABOVE,
         },
         {
           category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-          threshold: HarmBlockThreshold.BLOCK_HIGH_AND_ABOVE,
+          threshold: HarmBlockThreshold.BLOCK_LOW_AND_ABOVE,
         },
         {
           category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-          threshold: HarmBlockThreshold.BLOCK_HIGH_AND_ABOVE,
+          threshold: HarmBlockThreshold.BLOCK_LOW_AND_ABOVE,
         },
       ],
     });
@@ -58,6 +60,7 @@ const handleGeminiError = async (error: any, docsSummary: Document[], summaryPro
     try {
       return await fallbackChain.invoke({ input_documents: docsSummary });
     } catch (fallbackError) {
+      console.error("Fallback attempt failed:", fallbackError);
       throw new Error("Unable to process content due to content restrictions");
     }
   }
