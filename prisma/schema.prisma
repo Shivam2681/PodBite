@@ -20,7 +20,7 @@ model User {
   image        String?
   provider     String
   oauth_id     String
-  coins        Int            @default(100) @db.Integer
+  coins        Int            @default(50) @db.Integer
   created_at   DateTime       @default(now())
   Summary      Summary[]
   CoinSpend    CoinSpend[]
