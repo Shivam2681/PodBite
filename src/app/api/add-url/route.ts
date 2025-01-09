@@ -8,11 +8,24 @@ import { getUserCoins } from "@/actions/fetchActions";
 
 // Separate the YouTube loading logic
 async function loadYouTubeTranscript(url: string) {
-  const loader = YoutubeLoader.createFromUrl(url, {
-    language: "en",
-    addVideoInfo: true,
-  });
-  return await loader.load();
+  // const loader = YoutubeLoader.createFromUrl(url, {
+  //   language: "en",
+  //   addVideoInfo: true,
+  // });
+  // return await loader.load();
+  try {
+    const loader = YoutubeLoader.createFromUrl(url, {
+      language: "en",
+      addVideoInfo: true,
+    });
+    const transcript = await loader.load();
+    console.log("Transcript Loaded:", transcript);
+    return transcript;
+  } catch (err) {
+    console.error("YouTube Loader Error:", err);
+    throw err; // Re-throw the error for API response handling
+  }
+
 }
 
 export async function POST(req: NextRequest) {
